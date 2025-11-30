@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use aws_config::BehaviorVersion;
-use aws_config::meta::region::RegionProviderChain;
+// use aws_config::BehaviorVersion;
+// use aws_config::meta::region::RegionProviderChain;
 use aws_lambda_events::apigw::ApiGatewayV2httpRequest;
-use lambda_http::{Body, Error, Response, http::StatusCode};
+use lambda_http::{Error, http::HeaderMap};
 use lambda_runtime::{LambdaEvent, service_fn};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
 
 /*
     we have two possibilties for input:
@@ -38,29 +37,26 @@ async fn main() -> Result<(), Error> {
 
 // function recieves an event with a firstname field and returns a message to the caller
 async fn func(event: LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedLog, Error> {
-    let headers = event.payload.headers;
+    // grab useful information from the event
+    let headers = &event.payload.headers;
     let content_type = headers
         .get("content-type")
         .or_else(|| headers.get("Content-Type"));
+    let body_str = event.payload.body.as_ref().ok_or("Missing body")?;
 
-    //
+    // handle conversion "overseeing" logic given the content type of the http request
     let normalized = match content_type.and_then(|s| s.to_str().ok()) {
-        Some("text/plain") => handle_plaintext(&event)?,
-        Some("application/json") => handle_json(&event)?,
-        Some(other) => Err(format!("Unsupported: {other}").into()),
+        Some("text/plain") => handle_plaintext(&headers, &body_str),
+        Some("application/json") => handle_json(&body_str),
+        Some(other) => Err(format!("Unsupported: {}", other).into()),
         None => Err("Missing conten-type".into()),
     }?; // unwrap the result
 
-    Ok(())
+    Ok(normalized)
 }
 
 // borrow so we don't take ownership away from the lambda runtime
-fn handle_json(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedLog, Error> {
-    let body = match &event.payload.body {
-        Some(b) => b,
-        None => return Err("Missing body".into()),
-    };
-
+fn handle_json(body: &str) -> Result<NormalizedLog, Error> {
     let incoming: IncomingData = serde_json::from_str(&body)?;
 
     let mut metadata = HashMap::new();
@@ -76,15 +72,11 @@ fn handle_json(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<Normalize
     })
 }
 
-fn handle_plaintext(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedLog, Error> {
-    let headers = &event.payload.headers;
-
+fn handle_plaintext(headers: &HeaderMap, body: &str) -> Result<NormalizedLog, Error> {
     let tenant_id = headers
         .get("X-Tenant-ID")
         .and_then(|v| v.to_str().ok()) // if header exists and is valid UTF-8
         .ok_or("Missing X-Tenant-ID header")?; // converst Option to result, or returns error if None
-
-    let body = event.payload.body.as_ref().ok_or("Missing body")?;
 
     Ok(NormalizedLog {
         tenant_id: tenant_id.to_string(),
@@ -95,9 +87,21 @@ fn handle_plaintext(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<Norm
         metadata: None,
     })
 }
-// Helper function
-fn error_response(status: StatusCode, message: &str) -> Result<Response<Body>, Error> {
-    Ok(Response::builder()
-        .status(status)
-        .body(Body::from(message.to_string()))?)
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+    use lambda_http::http::HeaderMap;
+
+    #[test]
+    fn test_handle_json() {
+        let mut headers = HeaderMap::new();
+        headers.insert("content-type", "application/json".parse().unwrap());
+
+        let body = r#"{"tenant_id":"test","log_id":"123","text":"hello"}"#.to_string();
+
+        let result = handle_json(&body).unwrap();
+        assert_eq!(result.tenant_id, "test");
+    }
 }
