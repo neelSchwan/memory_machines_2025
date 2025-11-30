@@ -3,14 +3,15 @@ use std::collections::HashMap;
 use aws_config::BehaviorVersion;
 use aws_config::meta::region::RegionProviderChain;
 use aws_lambda_events::apigw::ApiGatewayV2httpRequest;
-use lambda_runtime::{Error, LambdaEvent, service_fn};
-use serde::Serialize;
+use lambda_http::{Body, Error, Response, http::StatusCode};
+use lambda_runtime::{LambdaEvent, service_fn};
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /*
     we have two possibilties for input:
         txt (so header is plain/text): we treat the body as raw text, and grab tenant from header
-        json (so header is application/json):we grab tenant from the header, and parse into the struct.
+        json (so header is application/json):we grab tenant from the body, and parse into the struct.
 */
 #[derive(Serialize)]
 struct NormalizedLog {
@@ -20,6 +21,12 @@ struct NormalizedLog {
     timestamp: Option<String>, // may be client provided
     tags: Option<Vec<String>>,
     metadata: Option<HashMap<String, String>>,
+}
+#[derive(Deserialize)]
+struct IncomingData {
+    tenant_id: String,
+    log_id: String,
+    text: String,
 }
 
 #[tokio::main]
@@ -36,11 +43,41 @@ async fn func(event: LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedL
         .get("content-type")
         .or_else(|| headers.get("Content-Type"));
 
-    match content_type.map(|s| s.as_str()) {
-        Some("text/plain") => handle_plaintext(),
-        Some("application/json") => handle_json(),
-        Some(other) => return error(format!("Unsupported content type: {}", other)),
-        None => return error("Missing content-type header"),
-    }
+    //
+    let normalized = match content_type.and_then(|s| s.to_str().ok()) {
+        Some("text/plain") => handle_plaintext(&event)?,
+        Some("application/json") => handle_json(&event)?,
+        Some(other) => Err(format!("Unsupported: {other}").into()),
+        None => Err("Missing conten-type".into()),
+    }?; // unwrap the result
+
     Ok(())
+}
+
+// borrow so we don't take ownership away from the lambda runtime
+fn handle_json(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedLog, Error> {
+    let body = match &event.payload.body {
+        Some(b) => b,
+        None => return Err("Missing body".into()),
+    };
+
+    let incoming: IncomingData = serde_json::from_str(&body)?;
+
+    let mut metadata = HashMap::new();
+    metadata.insert("log_id".to_string(), incoming.log_id);
+
+    Ok(NormalizedLog {
+        tenant_id: incoming.tenant_id,
+        text: incoming.text,
+        source: Some("json".to_string()),
+        timestamp: None,
+        tags: None,
+        metadata: Some(metadata),
+    })
+}
+// Helper function
+fn error_response(status: StatusCode, message: &str) -> Result<Response<Body>, Error> {
+    Ok(Response::builder()
+        .status(status)
+        .body(Body::from(message.to_string()))?)
 }
