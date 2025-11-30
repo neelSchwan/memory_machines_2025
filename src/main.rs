@@ -75,6 +75,26 @@ fn handle_json(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<Normalize
         metadata: Some(metadata),
     })
 }
+
+fn handle_plaintext(event: &LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedLog, Error> {
+    let headers = &event.payload.headers;
+
+    let tenant_id = headers
+        .get("X-Tenant-ID")
+        .and_then(|v| v.to_str().ok()) // if header exists and is valid UTF-8
+        .ok_or("Missing X-Tenant-ID header")?; // converst Option to result, or returns error if None
+
+    let body = event.payload.body.as_ref().ok_or("Missing body")?;
+
+    Ok(NormalizedLog {
+        tenant_id: tenant_id.to_string(),
+        text: body.to_string(),
+        source: Some("plaintext".to_string()),
+        timestamp: None,
+        tags: None,
+        metadata: None,
+    })
+}
 // Helper function
 fn error_response(status: StatusCode, message: &str) -> Result<Response<Body>, Error> {
     Ok(Response::builder()
