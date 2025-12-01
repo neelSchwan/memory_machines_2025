@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use lambda_http::{Body, Error, Response, http::HeaderMap, run, service_fn};
+use lambda_http::{Body, Error, Response, http::HeaderMap, service_fn};
 use serde::{Deserialize, Serialize};
 /*
     we have two possibilties for input:
