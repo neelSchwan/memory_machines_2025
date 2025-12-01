@@ -1,12 +1,7 @@
 use std::collections::HashMap;
 
-// use aws_config::BehaviorVersion;
-// use aws_config::meta::region::RegionProviderChain;
-use aws_lambda_events::apigw::ApiGatewayV2httpRequest;
-use lambda_http::{Error, http::HeaderMap};
-use lambda_runtime::{LambdaEvent, service_fn};
+use lambda_http::{Body, Error, Response, http::HeaderMap, run, service_fn};
 use serde::{Deserialize, Serialize};
-
 /*
     we have two possibilties for input:
         txt (so header is plain/text): we treat the body as raw text, and grab tenant from header
@@ -30,19 +25,21 @@ struct IncomingData {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let func = service_fn(func);
-    lambda_runtime::run(func).await?;
-    Ok(())
+    lambda_http::run(service_fn(func)).await
 }
 
 // function recieves an event with a firstname field and returns a message to the caller
-async fn func(event: LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedLog, Error> {
+async fn func(event: lambda_http::Request) -> Result<Response<Body>, Error> {
     // grab useful information from the event
-    let headers = &event.payload.headers;
+    let headers = &event.headers();
+
     let content_type = headers
         .get("content-type")
         .or_else(|| headers.get("Content-Type"));
-    let body_str = event.payload.body.as_ref().ok_or("Missing body")?;
+
+    // convert body to string
+    let body_bytes = event.body();
+    let body_str = std::str::from_utf8(body_bytes.as_ref()).map_err(|_| "Invalid UTF-8 in body")?;
 
     // handle conversion "overseeing" logic given the content type of the http request
     let normalized = match content_type.and_then(|s| s.to_str().ok()) {
@@ -52,7 +49,25 @@ async fn func(event: LambdaEvent<ApiGatewayV2httpRequest>) -> Result<NormalizedL
         None => Err("Missing conten-type".into()),
     }?; // unwrap the result
 
-    Ok(normalized)
+    // serialize to json
+    let message_json = serde_json::to_string(&normalized)?;
+
+    // set up sqs integration from env vars
+    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+    let sqs_client = aws_sdk_sqs::Client::new(&config);
+    let queue_url = std::env::var("QUEUE_URL").expect("QUEUE_URL not set");
+
+    // we send the serialized message to the broker
+    sqs_client
+        .send_message()
+        .queue_url(queue_url)
+        .message_body(message_json)
+        .send()
+        .await?;
+
+    Ok(Response::builder()
+        .status(202)
+        .body(Body::from("Accepted"))?)
 }
 
 // borrow so we don't take ownership away from the lambda runtime
@@ -96,12 +111,20 @@ mod tests {
 
     #[test]
     fn test_handle_json() {
-        let mut headers = HeaderMap::new();
-        headers.insert("content-type", "application/json".parse().unwrap());
-
         let body = r#"{"tenant_id":"test","log_id":"123","text":"hello"}"#.to_string();
 
         let result = handle_json(&body).unwrap();
+        assert_eq!(result.tenant_id, "test");
+    }
+
+    #[test]
+    fn test_handle_plaintext() {
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Tenant-ID", "test".parse().unwrap());
+
+        let body = "abcdefghijklmnop".to_string();
+        let result = handle_plaintext(&headers, &body).unwrap();
+
         assert_eq!(result.tenant_id, "test");
     }
 }
