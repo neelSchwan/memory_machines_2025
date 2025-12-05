@@ -30,6 +30,8 @@ async fn main() -> Result<(), Error> {
 
 // function recieves an event with a firstname field and returns a message to the caller
 async fn func(event: lambda_http::Request) -> Result<Response<Body>, Error> {
+    println!("INGEST: received request");
+
     // grab useful information from the event
     let headers = &event.headers();
 
@@ -39,18 +41,42 @@ async fn func(event: lambda_http::Request) -> Result<Response<Body>, Error> {
 
     // convert body to string
     let body_bytes = event.body();
-    let body_str = std::str::from_utf8(body_bytes.as_ref()).map_err(|_| "Invalid UTF-8 in body")?;
+    let body_str = std::str::from_utf8(body_bytes.as_ref())
+        .map_err(|e| {
+            eprintln!("INGEST ERROR: Invalid UTF-8 in body: {}", e);
+            "Invalid UTF-8 in body"
+        })?;
+
+    println!("INGEST: body length = {} bytes", body_str.len());
 
     // handle conversion "overseeing" logic given the content type of the http request
     let normalized = match content_type.and_then(|s| s.to_str().ok()) {
-        Some("text/plain") => handle_plaintext(&headers, &body_str),
-        Some("application/json") => handle_json(&body_str),
-        Some(other) => Err(format!("Unsupported: {}", other).into()),
-        None => Err("Missing conten-type".into()),
+        Some("text/plain") => {
+            println!("INGEST: handling text/plain");
+            handle_plaintext(&headers, &body_str)
+        }
+        Some("application/json") => {
+            println!("INGEST: handling application/json");
+            handle_json(&body_str)
+        }
+        Some(other) => {
+            eprintln!("INGEST ERROR: Unsupported content-type: {}", other);
+            Err(format!("Unsupported content-type: {}", other).into())
+        }
+        None => {
+            eprintln!("INGEST ERROR: Missing Content-Type header");
+            Err("Missing Content-Type header".into())
+        }
     }?; // unwrap the result
 
+    println!("INGEST: normalized tenant_id={}", normalized.tenant_id);
+
     // serialize to json
-    let message_json = serde_json::to_string(&normalized)?;
+    let message_json = serde_json::to_string(&normalized)
+        .map_err(|e| {
+            eprintln!("INGEST ERROR: Failed to serialize: {}", e);
+            e
+        })?;
 
     // set up sqs integration from env vars
     let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
@@ -58,21 +84,34 @@ async fn func(event: lambda_http::Request) -> Result<Response<Body>, Error> {
     let queue_url = std::env::var("QUEUE_URL").expect("QUEUE_URL not set");
 
     // we send the serialized message to the broker
+    println!("INGEST: sending to SQS queue");
     sqs_client
         .send_message()
         .queue_url(queue_url)
         .message_body(message_json)
         .send()
-        .await?;
+        .await
+        .map_err(|e| {
+            eprintln!("INGEST ERROR: SQS send failed: {}", e);
+            format!("Failed to send to SQS: {}", e)
+        })?;
+
+    println!("INGEST: successfully queued message");
 
     Ok(Response::builder()
         .status(202)
-        .body(Body::from("Accepted"))?)
+        .body(Body::from("Accepted (202)"))?)
 }
 
 // borrow so we don't take ownership away from the lambda runtime
 fn handle_json(body: &str) -> Result<NormalizedLog, Error> {
-    let incoming: IncomingData = serde_json::from_str(&body)?;
+    let incoming: IncomingData = serde_json::from_str(&body)
+        .map_err(|e| {
+            eprintln!("INGEST ERROR: Failed to parse JSON body: {}", e);
+            e
+        })?;
+
+    println!("INGEST: parsed JSON tenant_id={} log_id={}", incoming.tenant_id, incoming.log_id);
 
     let mut metadata = HashMap::new();
     metadata.insert("log_id".to_string(), incoming.log_id);
@@ -91,7 +130,16 @@ fn handle_plaintext(headers: &HeaderMap, body: &str) -> Result<NormalizedLog, Er
     let tenant_id = headers
         .get("X-Tenant-ID")
         .and_then(|v| v.to_str().ok()) // if header exists and is valid UTF-8
-        .ok_or("Missing X-Tenant-ID header")?; // converst Option to result, or returns error if None
+        .ok_or_else(|| {
+            eprintln!("INGEST ERROR: Missing X-Tenant-ID header for plaintext request");
+            "Missing X-Tenant-ID header"
+        })?; // converst Option to result, or returns error if None
+
+    let log_id = uuid::Uuid::new_v4().to_string();
+    println!("INGEST: parsed plaintext tenant_id={} generated_log_id={}", tenant_id, log_id);
+
+    let mut metadata = HashMap::new();
+    metadata.insert("log_id".to_string(), log_id);
 
     Ok(NormalizedLog {
         tenant_id: tenant_id.to_string(),
@@ -99,7 +147,7 @@ fn handle_plaintext(headers: &HeaderMap, body: &str) -> Result<NormalizedLog, Er
         source: Some("plaintext".to_string()),
         timestamp: None,
         tags: None,
-        metadata: None,
+        metadata: Some(metadata),
     })
 }
 

@@ -9,3 +9,4 @@ aws-config = { version = "1", features = ["behavior-version-latest"] }
 aws-sdk-sqs = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+uuid = { version = "1.19", features = ["v4"] }

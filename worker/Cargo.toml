@@ -13,4 +13,4 @@ aws_lambda_events = { version = "0.15", default-features = false, features = ["s
 lambda_runtime = "0.13"
 regex = "1"
 chrono = "0.4"
-uuid = "1.19.0"
+uuid = { workspace = true }
