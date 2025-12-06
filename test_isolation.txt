@@ -1,0 +1,247 @@
+----- DynamoDB Table Schema -----
+[
+    {
+        "AttributeName": "tenant_id",
+        "KeyType": "HASH"
+    },
+    {
+        "AttributeName": "log_id",
+        "KeyType": "RANGE"
+    }
+]
+
+------ Query tenant-1 data -----
+{
+    "Items": [
+        {
+            "modified_data": {
+                "S": "Customer [REDACTED] logged in from web"
+            },
+            "source": {
+                "S": "plaintext"
+            },
+            "original_text": {
+                "S": "Customer 555-561-3346 logged in from web"
+            },
+            "tenant_id": {
+                "S": "tenant-1"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:52.918381410+00:00"
+            },
+            "log_id": {
+                "S": "33c2b62f-480c-4b65-b46f-5983eb40dbee"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "Call from [REDACTED] failed authentication"
+            },
+            "source": {
+                "S": "plaintext"
+            },
+            "original_text": {
+                "S": "Call from 555-589-2572 failed authentication"
+            },
+            "tenant_id": {
+                "S": "tenant-1"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:56.590714190+00:00"
+            },
+            "log_id": {
+                "S": "a8782368-4d6a-4c4f-aaf5-605fee9a2ac5"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "User [REDACTED] accessed the system"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "User 555-257-8897 accessed the system"
+            },
+            "tenant_id": {
+                "S": "tenant-1"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:31:00.328844906+00:00"
+            },
+            "log_id": {
+                "S": "log-1eaec824-f355-475f-af0f-91914d25fe26"
+            }
+        }
+    ],
+    "Count": 3,
+    "ScannedCount": 3,
+    "ConsumedCapacity": {
+        "TableName": "tenant_processed_logs",
+        "CapacityUnits": 0.5
+    }
+}
+
+---- Query tenant-2 data -----
+{
+    "Items": [
+        {
+            "modified_data": {
+                "S": "User [REDACTED] accessed the system"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "User 555-251-8053 accessed the system"
+            },
+            "tenant_id": {
+                "S": "tenant-2"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:59.646725586+00:00"
+            },
+            "log_id": {
+                "S": "log-1db75463-9f27-46c2-8a32-66f2a597c671"
+            }
+        }
+    ],
+    "Count": 1,
+    "ScannedCount": 1,
+    "ConsumedCapacity": {
+        "TableName": "tenant_processed_logs",
+        "CapacityUnits": 0.5
+    }
+}
+
+----- Query tenant-3 data -----
+{
+    "Items": [
+        {
+            "modified_data": {
+                "S": "User [REDACTED] accessed the system"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "User 555-228-2001 accessed the system"
+            },
+            "tenant_id": {
+                "S": "tenant-3"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:31:00.062416750+00:00"
+            },
+            "log_id": {
+                "S": "log-08603310-5e9f-45d3-9213-9e7e58060142"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "Call from [REDACTED] failed authentication"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "Call from 555-854-7594 failed authentication"
+            },
+            "tenant_id": {
+                "S": "tenant-3"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:31:00.973789889+00:00"
+            },
+            "log_id": {
+                "S": "log-63b8ecce-3954-4f17-ace5-9bd626da66ed"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "Support ticket opened by [REDACTED]"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "Support ticket opened by 555-924-4369"
+            },
+            "tenant_id": {
+                "S": "tenant-3"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:59.387867452+00:00"
+            },
+            "log_id": {
+                "S": "log-73836f2f-06d6-495c-b41c-20151187b131"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "Customer [REDACTED] logged in from web"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "Customer 555-791-9711 logged in from web"
+            },
+            "tenant_id": {
+                "S": "tenant-3"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:57.479863762+00:00"
+            },
+            "log_id": {
+                "S": "log-8858ff37-dac7-49ba-95d1-b6869074efff"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "Customer [REDACTED] logged in from web"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "Customer 555-219-8661 logged in from web"
+            },
+            "tenant_id": {
+                "S": "tenant-3"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:53.593272392+00:00"
+            },
+            "log_id": {
+                "S": "log-95deac96-41de-4ff1-b022-2132862d6eef"
+            }
+        },
+        {
+            "modified_data": {
+                "S": "User [REDACTED] accessed the system"
+            },
+            "source": {
+                "S": "json"
+            },
+            "original_text": {
+                "S": "User 555-438-8955 accessed the system"
+            },
+            "tenant_id": {
+                "S": "tenant-3"
+            },
+            "processed_at": {
+                "S": "2025-12-06T04:30:58.728217178+00:00"
+            },
+            "log_id": {
+                "S": "log-f3528826-3b5d-4cc5-80b1-815032b6c032"
+            }
+        }
+    ],
+    "Count": 6,
+    "ScannedCount": 6,
+    "ConsumedCapacity": {
+        "TableName": "tenant_processed_logs",
+        "CapacityUnits": 0.5
+    }
+}

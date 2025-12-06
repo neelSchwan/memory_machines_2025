@@ -74,6 +74,11 @@ One of the drawbacks / flaws with this design is that every query **must explici
 
 Using a single, pooled DynamoDB table keeps operations simpler, ( backups, permissions, indexing), and scales horizontally without needing to provide per-tenant database resources. Additionally, this design fits well with serverless patterns (Lambda + SQS + DynamoDB). DynamoDB also auto-scales storage and throughput, so we don't need to pre-provision capacities per tenant.
 
+## How I handled the "Crash Sim"
+
+Basically, system handles crashes through SQS's built-in retry mechanism and dead-letter queue configuration. When the worker Lambda fails to process a message (simulating a crash), SQS automatically retries up to 5 times based on the maxReceiveCount setting. If all retries fail, the message moves to the dead-letter queue for manual inspection and reprocessing. 
+
+This prevents data loss during failures and allows the system to recover gracefully without blocking the ingestion pipeline. Additionally, the Lambda's idempotent processing makes sure that retried messages don't create any duplicate records in DynamoDB.
 
 ## Testing
 
