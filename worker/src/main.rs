@@ -27,12 +27,12 @@ struct NormalizedLog {
 #[derive(Debug, Clone)]
 #[derive(Serialize)]
 struct ProcessedLog {
-    tenant_id: String,     // DynamoDB Partition Key
-    log_id: String,        // DynamoDB Sort Key
-    source: String,        // e.g. "json", "plaintext"
+    tenant_id: String, // DynamoDB Partition Key
+    log_id: String, // DynamoDB Sort Key
+    source: String, // e.g. "json", "plaintext"
     original_text: String, // The unmodified text from the log
     modified_data: String, // Text with phone numbers redacted
-    processed_at: String,  // ISO8601 timestamp of when we processed it
+    processed_at: String, // ISO8601 timestamp of when we processed it
 }
 
 #[tokio::main]

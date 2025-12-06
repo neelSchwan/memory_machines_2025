@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 struct NormalizedLog {
     tenant_id: String,
     text: String,
-    source: Option<String>,    // e.g. "web", "mobile", "plaintext"
+    source: Option<String>, // e.g. "web", "mobile", "plaintext"
     timestamp: Option<String>, // may be client provided
     tags: Option<Vec<String>>,
     metadata: Option<HashMap<String, String>>,
